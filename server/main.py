@@ -3,14 +3,13 @@ import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-import aiofiles
 import qrcode
-from fastapi import FastAPI, Form, Request, Response, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import BackgroundTasks, FastAPI, Form, Request, Response, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from hub import ConnectionManager
-from transfers import TransferStore
+from transfers import TRANSFER_DIR, TransferStore
 
 manager = ConnectionManager()
 store = TransferStore()
@@ -20,7 +19,7 @@ UI_DIR = Path(__file__).parent.parent / "ui"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    Path("/data/transfers").mkdir(parents=True, exist_ok=True)
+    TRANSFER_DIR.mkdir(parents=True, exist_ok=True)
     await store.cleanup_old()
     yield
 
@@ -88,10 +87,11 @@ async def upload(
     file_id = str(uuid.uuid4())
     data = await file.read()
     await store.save(file_id, file.filename, target, data)
+    safe_filename = store.get(file_id)["filename"]
     await manager.send_to(target, {
         "type": "incoming",
         "file_id": file_id,
-        "filename": file.filename,
+        "filename": safe_filename,
         "size": len(data),
         "from": from_name,
     })
@@ -99,15 +99,13 @@ async def upload(
 
 
 @app.get("/download/{file_id}")
-async def download(file_id: str):
+async def download(file_id: str, background_tasks: BackgroundTasks):
     meta = store.get(file_id)
     if not meta:
         return Response(status_code=404)
-    async with aiofiles.open(meta["path"], "rb") as f:
-        content = await f.read()
-    await store.delete(file_id)
-    return Response(
-        content=content,
+    background_tasks.add_task(store.delete, file_id)
+    return FileResponse(
+        meta["path"],
         media_type="application/octet-stream",
-        headers={"Content-Disposition": f'attachment; filename="{meta["filename"]}"'},
+        filename=meta["filename"],
     )
