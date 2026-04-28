@@ -1,3 +1,4 @@
+import asyncio
 import time
 from pathlib import Path
 import aiofiles
@@ -12,13 +13,14 @@ class TransferStore:
         self._meta: dict[str, dict] = {}
 
     async def save(self, file_id: str, filename: str, target: str, data: bytes):
+        safe_name = Path(filename).name  # strip any path separators
         TRANSFER_DIR.mkdir(parents=True, exist_ok=True)
-        path = TRANSFER_DIR / f"{file_id}_{filename}"
+        path = TRANSFER_DIR / f"{file_id}_{safe_name}"
         async with aiofiles.open(path, "wb") as f:
             await f.write(data)
         self._meta[file_id] = {
             "target": target,
-            "filename": filename,
+            "filename": safe_name,
             "path": path,
             "created": time.time(),
         }
@@ -45,9 +47,12 @@ class TransferStore:
 
         known = {f"{fid}_{m['filename']}" for fid, m in self._meta.items()}
         if TRANSFER_DIR.exists():
-            for entry in TRANSFER_DIR.iterdir():
-                if entry.name not in known:
-                    try:
-                        entry.unlink()
-                    except Exception:
-                        pass
+            await asyncio.to_thread(self._cleanup_orphans, known)
+
+    def _cleanup_orphans(self, known: set[str]):
+        for entry in TRANSFER_DIR.iterdir():
+            if entry.name not in known:
+                try:
+                    entry.unlink()
+                except Exception:
+                    pass
