@@ -1,6 +1,13 @@
+function _uuid() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+
 const DEVICE_ID = (() => {
   let id = localStorage.getItem('ld_device_id');
-  if (!id) { id = crypto.randomUUID(); localStorage.setItem('ld_device_id', id); }
+  if (!id) { id = _uuid(); localStorage.setItem('ld_device_id', id); }
   return id;
 })();
 
