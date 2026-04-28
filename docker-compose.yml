@@ -1,0 +1,13 @@
+version: "3.9"
+
+services:
+  localdrop:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    container_name: localdrop
+    restart: unless-stopped
+    ports:
+      - "8765:8765"
+    volumes:
+      - /mnt/pool/localdrop:/data/transfers
