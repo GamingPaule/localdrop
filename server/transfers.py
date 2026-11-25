@@ -1,10 +1,12 @@
 import asyncio
+import os
 import time
 from pathlib import Path
 import aiofiles
 import aiofiles.os
 
-TRANSFER_DIR = Path("/data/transfers")
+# Im Docker-Container /data/transfers; lokal per LOCALDROP_DATA überschreibbar
+TRANSFER_DIR = Path(os.environ.get("LOCALDROP_DATA", "/data/transfers"))
 MAX_AGE_SECONDS = 86400  # 24 hours
 
 
